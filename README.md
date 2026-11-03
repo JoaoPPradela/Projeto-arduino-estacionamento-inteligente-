@@ -86,19 +86,3 @@ O arquivo [`schema.sql`](schema.sql) implementa os scripts normalizados:
    *(Acesse no navegador: `http://127.0.0.1:5000`)*.
 4. **Teste Prático:** Aproxime a mão do sensor HC-SR04: os centímetros cairão ao vivo na tela, o buzzer apitará mais rápido, os LEDs alternarão e você poderá clicar em *"Abrir Cancela"* e *"Testar Buzzer"*.
 
----
-
-## 7. Roteiro do Pitch (10 Min) e Sabatina Técnica (Etapa 6)
-
-### Pitch de 10 Minutos:
-* **00:00 - 02:00 (Problema & Solução):** Riscos de colisão em vagas apertadas e apresentação do assistente IoT.
-* **02:00 - 06:00 (Demonstração Prática):** Aproximação do objeto, variação dos bipes/LEDs, atualização ao vivo da tela e comando da cancela.
-* **06:00 - 08:00 (Arquitetura Técnica):** Explicação do fluxo Arduino ➔ Serial/MQTT ➔ Flask ➔ SQLite ➔ Front-End.
-* **08:00 - 10:00 (Impacto & Futuro):** Uso em garagens inteligentes, integração com OCR de placas e app mobile.
-
-### Guia Rápido para a Sabatina Técnica da Banca:
-* **Hardware:** Cálculo por tempo de eco: $\text{dist} = (\text{tempo} \times 0.0343) / 2$.
-* **Redes & MQTT:** Protocolo Pub/Sub ultraleve com tópicos organizados para baixo consumo de banda.
-* **Back-End:** Flask com rotas REST e thread serial em segundo plano para não travar a aplicação.
-* **Banco de Dados:** SQLite relacional com tabelas normalizadas e histórico via timestamp.
-* **Front-End:** Fetch API assíncrona periódica (350ms) manipulando o DOM sem recarregar a página.
