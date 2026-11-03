@@ -1,0 +1,71 @@
+/* Estilos Compactos - Estacionamento Inteligente (IoT SENAI) */
+* { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Arial, sans-serif; }
+body { background: #f1f5f9; color: #1e293b; padding: 20px 16px; }
+.container { max-width: 860px; margin: 0 auto; }
+
+/* Topo e Cabecalho */
+.top-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px; }
+.badge-senai { background: #e0e7ff; color: #3730a3; font: bold 11px sans-serif; padding: 4px 10px; border-radius: 12px; text-transform: uppercase; }
+.top-header h1 { font-size: 24px; font-weight: 800; color: #0f172a; margin-top: 4px; }
+.subtitulo { color: #64748b; font-size: 13px; }
+
+/* Cards Base */
+.card { background: #fff; border: 1px solid #cbd5e1; border-radius: 10px; padding: 16px; box-shadow: 0 2px 4px rgba(0,0,0,0.04); }
+.grid-principal { display: flex; gap: 14px; margin-bottom: 14px; align-items: stretch; }
+@media (max-width: 680px) { .grid-principal { flex-direction: column; } }
+
+/* Card da Distancia (Slide 08) */
+.card-destaque { flex: 1.25; display: flex; flex-direction: column; justify-content: space-between; }
+.label-card { font: bold 12px sans-serif; color: #64748b; text-transform: uppercase; }
+.caixa-distancia { margin: 8px 0 4px 0; display: flex; align-items: baseline; gap: 6px; }
+.numero-grande { font-size: 68px; font-weight: 900; color: #eab308; line-height: 1; }
+.unidade { font-size: 24px; font-weight: 700; color: #64748b; }
+.texto-nivel { font-size: 18px; font-weight: 700; color: #eab308; margin-bottom: 12px; }
+
+/* Barra de Proximidade */
+.barra-fundo { height: 12px; background: #e2e8f0; border-radius: 6px; overflow: hidden; }
+.barra-cor { height: 100%; width: 68%; background: #eab308; transition: width .3s, background .3s; }
+.barra-legendas { display: flex; justify-content: space-between; font: 600 11px sans-serif; color: #64748b; margin-top: 4px; }
+
+/* Coluna Direita (Sensor, Alerta, LEDs) */
+.coluna-cards { flex: 1; display: flex; flex-direction: column; gap: 10px; }
+.card-pequeno { flex: 1; display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; }
+.card-pequeno h3 { font: bold 11px sans-serif; color: #64748b; text-transform: uppercase; }
+.valor-card { font: 800 17px sans-serif; color: #0f172a; margin-top: 2px; }
+.icone { font-size: 24px; }
+
+/* LEDs Virtuais */
+.leds-container { display: flex; gap: 8px; margin-top: 4px; }
+.led-bolinha { width: 16px; height: 16px; border-radius: 50%; background: #cbd5e1; border: 1px solid #94a3b8; display: inline-block; }
+.led-verde-ativo { background: #22c55e; border-color: #16a34a; box-shadow: 0 0 8px #22c55e; }
+.led-amarelo-ativo { background: #eab308; border-color: #ca8a04; box-shadow: 0 0 8px #eab308; }
+.led-vermelho-ativo { background: #ef4444; border-color: #dc2626; box-shadow: 0 0 8px #ef4444; }
+
+/* Pista e Carro */
+.card-vaga { margin-bottom: 14px; }
+.card-vaga h2 { font-size: 15px; font-weight: 700; }
+.pista-vaga { height: 75px; background: #f8fafc; border: 2px dashed #cbd5e1; border-radius: 8px; position: relative; display: flex; align-items: center; margin-top: 10px; overflow: hidden; }
+.carro { position: absolute; left: 30%; width: 90px; height: 40px; background: #2563eb; color: #fff; display: flex; align-items: center; justify-content: center; font: bold 11px sans-serif; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,.15); transition: left .3s ease; }
+.carro::after { content: ''; position: absolute; right: -4px; width: 4px; height: 10px; background: #ef4444; border-radius: 0 2px 2px 0; }
+.parede-obstaculo { position: absolute; right: 0; top: 0; bottom: 0; width: 20px; background: repeating-linear-gradient(45deg, #1e293b, #1e293b 8px, #f59e0b 8px, #f59e0b 16px); }
+
+/* Controles e Botoes */
+.painel-testes { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 12px; padding-top: 12px; border-top: 1px solid #e2e8f0; }
+.painel-testes input[type="range"] { accent-color: #2563eb; flex: 1; min-width: 120px; cursor: pointer; }
+.btn { padding: 7px 12px; border-radius: 6px; font: bold 12px sans-serif; cursor: pointer; border: 1px solid transparent; transition: .2s; }
+.btn-azul { background: #2563eb; color: #fff; }
+.btn-azul:hover { background: #1d4ed8; }
+.btn-cinza { background: #f8fafc; color: #334155; border-color: #cbd5e1; }
+.btn-cinza:hover { background: #e2e8f0; }
+.btn-audio { background: #fff; border-color: #cbd5e1; color: #334155; }
+.btn-audio.ativo { background: #ecfdf5; color: #047857; border-color: #10b981; }
+
+/* Tabela de Historico */
+.tabela-historico { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px; }
+.tabela-historico th { text-align: left; padding: 8px 10px; background: #f8fafc; border-bottom: 2px solid #e2e8f0; color: #64748b; font-size: 11px; text-transform: uppercase; font-weight: 700; }
+.tabela-historico td { padding: 8px 10px; border-bottom: 1px solid #f1f5f9; color: #334155; }
+[class^="tag-"] { padding: 2px 7px; border-radius: 4px; font: bold 11px sans-serif; display: inline-block; }
+.tag-verde { background: #dcfce7; color: #15803d; }
+.tag-amarelo { background: #fef9c3; color: #a16207; }
+.tag-vermelho { background: #fee2e2; color: #b91c1c; }
+.rodape { text-align: center; color: #64748b; font-size: 12px; margin-top: 20px; line-height: 1.5; }

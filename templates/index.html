@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Estacionamento Inteligente • Vaga 01 | SENAI</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+  <div class="container">
+    
+    <!-- Topo -->
+    <header class="top-header">
+      <div>
+        <span class="badge-senai">PROJETO INTEGRADOR IoT • SENAI</span>
+        <h1>ESTACIONAMENTO • VAGA 01</h1>
+        <p class="subtitulo">Sistema de auxílio para estacionar com sensor de distância e aviso sonoro</p>
+      </div>
+      <div>
+        <button id="btnAudio" class="btn btn-audio">
+          🔇 Som de Bipes: <strong>Desligado</strong>
+        </button>
+      </div>
+    </header>
+
+    <!-- Cards Principais (Slide 08) -->
+    <div class="grid-principal">
+      
+      <!-- Card da Distância -->
+      <div class="card card-destaque">
+        <span class="label-card">Distância até o obstáculo</span>
+        
+        <div class="caixa-distancia">
+          <span id="distanciaValor" class="numero-grande">68</span>
+          <span class="unidade">cm</span>
+        </div>
+        
+        <div id="distanciaNivel" class="texto-nivel">
+          Nível de atenção
+        </div>
+
+        <!-- Barra de proximidade -->
+        <div class="barra-fundo">
+          <div id="barraPreenchimento" class="barra-cor"></div>
+        </div>
+        <div class="barra-legendas">
+          <span>&lt; 50 cm (Perto)</span>
+          <span>50 a 100 cm (Atenção)</span>
+          <span>&gt; 100 cm (Longe)</span>
+        </div>
+      </div>
+
+      <!-- Coluna da Direita: Sensor e Alerta -->
+      <div class="coluna-cards">
+        
+        <!-- Card Sensor -->
+        <div class="card card-pequeno">
+          <div>
+            <h3>Sensor</h3>
+            <div id="sensorStatus" class="valor-card" style="color: #10b981;">Ativo</div>
+          </div>
+          <div class="icone">📡</div>
+        </div>
+
+        <!-- Card Alerta -->
+        <div class="card card-pequeno">
+          <div>
+            <h3>Alerta</h3>
+            <div id="alertaTexto" class="valor-card">Bipes moderados</div>
+          </div>
+          <div class="icone">🔊</div>
+        </div>
+
+        <!-- LEDs do Circuito -->
+        <div class="card card-pequeno">
+          <div>
+            <h3>LEDs do Circuito</h3>
+            <div class="leds-container">
+              <span id="ledVerde" class="led-bolinha" title="Verde: Longe"></span>
+              <span id="ledAmarelo" class="led-bolinha led-amarelo-ativo" title="Amarelo: Atenção"></span>
+              <span id="ledVermelho" class="led-bolinha" title="Vermelho: Muito Perto"></span>
+            </div>
+          </div>
+          <span style="font-size: 0.8rem; color: #64748b;">Arduino Uno</span>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- Simulação do Carro na Vaga -->
+    <div class="card card-vaga">
+      <h2>Simulação do Carro Estacionando</h2>
+      
+      <div class="pista-vaga">
+        <div id="carroVirtual" class="carro">
+          🚗 CARRO
+        </div>
+        <div class="parede-obstaculo">
+          <span>PAREDE</span>
+        </div>
+      </div>
+
+      <!-- Controles de Teste Rápidos -->
+      <div class="painel-testes">
+        <label><strong>Testar Distância:</strong></label>
+        <input type="range" id="sliderDistancia" min="10" max="180" value="68">
+        <span id="sliderTexto" style="font-weight: bold; min-width: 55px;">68 cm</span>
+        <button id="btnAplicarSlider" class="btn btn-cinza">Aplicar</button>
+        
+        <button id="btn68" class="btn btn-cinza">🎯 68 cm (Slide)</button>
+        <button id="btnEntrar" class="btn btn-azul">Simular Entrada</button>
+        <button id="btnSair" class="btn btn-cinza">Simular Saída</button>
+      </div>
+    </div>
+
+    <!-- Histórico de Leituras (Slide 08) -->
+    <div class="card">
+      <h2>Histórico</h2>
+      <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 12px;">Leituras anteriores consultadas no banco de dados SQLite</p>
+      
+      <table class="tabela-historico">
+        <thead>
+          <tr>
+            <th>Horário</th>
+            <th>Distância</th>
+            <th>Nível</th>
+            <th>Alerta Sonoro</th>
+          </tr>
+        </thead>
+        <tbody id="tabelaCorpo">
+          <tr><td colspan="4">Carregando...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Rodapé -->
+    <footer class="rodape">
+      <p><strong>Projeto Integrador • Internet das Coisas (IoT)</strong> — SENAI</p>    </footer>
+
+  </div>
+
+  <script src="/static/script.js"></script>
+</body>
+</html>
+
