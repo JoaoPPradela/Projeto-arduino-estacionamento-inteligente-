@@ -2,14 +2,12 @@
 // ESTACIONAMENTO INTELIGENTE • JS COMPACTO (100% FUNCIONAL)
 // =======================================================
 
-let somLigado = false, audioCtx = null, timerBipe = null, intervaloAtual = null, timerSimulacao = null;
+let somLigado = false, audioCtx = null, timerBipe = null, intervaloAtual = null, timerSimulacao = null, cancelaStatus = 'FECHADA';
 
-// Toca o bipe sonoro do buzzer
 function bipe(freq, dur = 0.08) {
   if (!somLigado) return;
   if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   if (audioCtx.state === 'suspended') audioCtx.resume();
-
   const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
   osc.frequency.value = freq;
   gain.gain.value = 0.08;
@@ -19,27 +17,21 @@ function bipe(freq, dur = 0.08) {
   osc.stop(audioCtx.currentTime + dur);
 }
 
-// Controla o ritmo dos bipes conforme a distância
 function tocarBipes(dist) {
   if (!somLigado || dist == null || dist <= 0 || dist > 200) {
     if (timerBipe) clearInterval(timerBipe);
     timerBipe = intervaloAtual = null;
     return;
   }
-
-  // Define tempo e frequência conforme as faixas da apresentação
   let tempo = dist < 15 ? 120 : (dist < 50 ? 200 : (dist <= 100 ? 450 : 800));
   let freq = dist < 15 ? 2400 : (dist < 50 ? 2200 : (dist <= 100 ? 1900 : 1600));
-
   if (intervaloAtual === tempo && timerBipe) return;
   if (timerBipe) clearInterval(timerBipe);
   intervaloAtual = tempo;
   timerBipe = setInterval(() => bipe(freq), tempo);
 }
 
-// Atualiza o painel e o histórico
 function atualizar() {
-  // 1. Dados em tempo real da vaga
   fetch('/api/vaga/status')
     .then(r => r.json())
     .then(dados => {
@@ -51,41 +43,42 @@ function atualizar() {
       document.getElementById('sensorStatus').textContent = dados.sensor_status;
       document.getElementById('alertaTexto').textContent = dados.descricao_alerta;
 
+      // Status da cancela remota
+      cancelaStatus = dados.cancela_status || 'FECHADA';
+      document.getElementById('cancelaTxt').textContent = cancelaStatus;
+      document.getElementById('btnCancela').className = cancelaStatus === 'ABERTA' ? 'btn btn-azul' : 'btn btn-cinza';
+
       // Barra de proximidade e LEDs
       const barra = document.getElementById('barraPreenchimento');
       barra.style.width = Math.max(5, Math.min(100, ((200 - dist) / 200) * 100)) + '%';
       barra.style.backgroundColor = dados.cor;
 
-      ['ledVerde', 'ledAmarelo', 'ledVermelho'].forEach(id => {
-        document.getElementById(id).className = 'led-bolinha';
-      });
+      ['ledVerde', 'ledAmarelo', 'ledVermelho'].forEach(id => document.getElementById(id).className = 'led-bolinha');
       if (dados.led === 'Verde') document.getElementById('ledVerde').className = 'led-bolinha led-verde-ativo';
       if (dados.led === 'Amarelo') document.getElementById('ledAmarelo').className = 'led-bolinha led-amarelo-ativo';
       if (dados.led === 'Vermelho') document.getElementById('ledVermelho').className = 'led-bolinha led-vermelho-ativo';
 
-      // Posiciona o carrinho na vaga
+      // Posição do carrinho na pista
       const pos = Math.max(10, Math.min(78, 78 - ((dist - 15) / 165) * 65));
       document.getElementById('carroVirtual').style.left = pos + '%';
 
       tocarBipes(dist);
     });
 
-  // 2. Histórico de leituras na tabela
+  // Histórico
   fetch('/api/leituras/historico')
     .then(r => r.json())
     .then(dados => {
       const tb = document.getElementById('tabelaCorpo');
       if (!dados.historico?.length) return (tb.innerHTML = '<tr><td colspan="4">Sem leituras</td></tr>');
-
       tb.innerHTML = dados.historico.map(h => {
-        const corTag = h.nivel_alerta === 'Longe' ? 'tag-verde' : (h.nivel_alerta === 'Muito Perto' ? 'tag-vermelho' : 'tag-amarelo');
+        const cor = h.nivel_alerta === 'Longe' ? 'tag-verde' : (h.nivel_alerta === 'Muito Perto' ? 'tag-vermelho' : 'tag-amarelo');
         const hora = h.data_hora ? h.data_hora.split(' ')[1] || h.data_hora : '--:--';
-        return `<tr><td>${hora}</td><td><strong>${h.distancia_cm} cm</strong></td><td><span class="${corTag}">${h.nivel_alerta}</span></td><td>${h.descricao_alerta}</td></tr>`;
+        return `<tr><td>${hora}</td><td><strong>${h.distancia_cm} cm</strong></td><td><span class="${cor}">${h.nivel_alerta}</span></td><td>${h.descricao_alerta}</td></tr>`;
       }).join('');
     });
 }
 
-// Envia uma nova leitura para a API
 function enviar(dist) {
   fetch('/api/leituras', {
     method: 'POST',
@@ -94,7 +87,14 @@ function enviar(dist) {
   }).then(atualizar);
 }
 
-// Função única com loop para simulações
+function comandoRemoto(atuador, acao) {
+  fetch('/api/atuadores/comando', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ atuador, acao })
+  }).then(atualizar);
+}
+
 function simular(passos) {
   if (timerSimulacao) clearInterval(timerSimulacao);
   let i = 0;
@@ -106,7 +106,6 @@ function simular(passos) {
   }, 600);
 }
 
-// Inicialização dos botões e eventos
 window.addEventListener('DOMContentLoaded', () => {
   const slider = document.getElementById('sliderDistancia');
   slider.oninput = () => document.getElementById('sliderTexto').textContent = slider.value + ' cm';
@@ -115,6 +114,10 @@ window.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn68').onclick = () => { slider.value = 68; slider.oninput(); enviar(68); };
   document.getElementById('btnEntrar').onclick = () => simular([150, 110, 85, 68, 40, 15]);
   document.getElementById('btnSair').onclick = () => simular([15, 45, 68, 95, 130, 175]);
+
+  // Controles Remotos de Atuadores (Requisito 4.5)
+  document.getElementById('btnCancela').onclick = () => comandoRemoto('cancela', cancelaStatus === 'ABERTA' ? 'FECHAR' : 'ABRIR');
+  document.getElementById('btnBuzzerRemoto').onclick = () => { comandoRemoto('buzzer', 'TESTE'); bipe(2000, 0.4); };
 
   const btnAudio = document.getElementById('btnAudio');
   btnAudio.onclick = () => {
@@ -126,5 +129,5 @@ window.addEventListener('DOMContentLoaded', () => {
   };
 
   atualizar();
-  setInterval(atualizar, 350); // Loop de atualização em tempo real
+  setInterval(atualizar, 350);
 });

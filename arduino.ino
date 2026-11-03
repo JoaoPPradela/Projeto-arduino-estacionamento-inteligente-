@@ -1,56 +1,50 @@
 /*
-  PROJETO INTEGRADOR - INTERNET DAS COISAS (IoT)
+  PROJETO INTEGRADOR IoT - SENAI "CONDE JOSÉ VICENTE DE AZEVEDO"
   Estacionamento Inteligente • Vaga 01
-  SENAI - Curso Técnico em Desenvolvimento de Sistemas
-  Integrantes: João Pradela, João Palandi e Pedro Cesar
+  Autores: João Pradela, João Palandi e Pedro Cesar
 
-  Conexões no Arduino Uno R3:
-  - HC-SR04 Trig   -> Pino Digital 9
-  - HC-SR04 Echo   -> Pino Digital 10
-  - Buzzer (+)     -> Pino Digital 8
-  - LED Verde (+)  -> Pino Digital 5 (com resistor 220 ohms)
-  - LED Amarelo (+) -> Pino Digital 6 (com resistor 220 ohms)
-  - LED Vermelho (+)-> Pino Digital 7 (com resistor 220 ohms)
-  - GND de todos   -> Pino GND do Arduino
-  - Cabo USB       -> Conectado na USB da Raspberry Pi ou Computador
+  Pinagem Arduino Uno R3:
+  - HC-SR04 Trig   -> Pino 9
+  - HC-SR04 Echo   -> Pino 10
+  - Buzzer (+)     -> Pino 8
+  - LED Verde (+)  -> Pino 5 (resistor 220 ohms)
+  - LED Amarelo (+) -> Pino 6 (resistor 220 ohms)
+  - LED Vermelho (+)-> Pino 7 (resistor 220 ohms)
+  - Micro Servo    -> Pino 11 (Cancela Mecânica)
+  - GND de todos   -> Pino GND
 */
 
-const int pinoTrig = 9;
-const int pinoEcho = 10;
-const int pinoBuzzer = 8;
-const int ledVerde = 5;
-const int ledAmarelo = 6;
-const int ledVermelho = 7;
+#include <Servo.h>
 
-unsigned long tempoBipe = 0;
-unsigned long tempoSerial = 0;
+const int pinoTrig = 9, pinoEcho = 10, pinoBuzzer = 8;
+const int ledVerde = 5, ledAmarelo = 6, ledVermelho = 7, pinoServo = 11;
+
+Servo servoCancela;
+unsigned long tempoBipe = 0, tempoSerial = 0;
 bool buzzerStatus = false;
+bool cancelaAberta = false;
 
 void setup() {
-  // Inicia a comunicação serial para mandar os centímetros para a Raspberry Pi
   Serial.begin(9600);
-
   pinMode(pinoTrig, OUTPUT);
   pinMode(pinoEcho, INPUT);
-
   pinMode(pinoBuzzer, OUTPUT);
   pinMode(ledVerde, OUTPUT);
   pinMode(ledAmarelo, OUTPUT);
   pinMode(ledVermelho, OUTPUT);
 
-  // Pisca os 3 LEDs no início para indicar que o circuito ligou
-  digitalWrite(ledVerde, HIGH);
-  digitalWrite(ledAmarelo, HIGH);
-  digitalWrite(ledVermelho, HIGH);
-  delay(300);
-  digitalWrite(ledVerde, LOW);
-  digitalWrite(ledAmarelo, LOW);
-  digitalWrite(ledVermelho, LOW);
+  // Conecta o servo motor da cancela (padrão fechada a 0 graus)
+  servoCancela.attach(pinoServo);
+  servoCancela.write(0);
 
-  Serial.println("Arduino pronto! Medindo distancia...");
+  // Teste inicial rápido dos LEDs
+  digitalWrite(ledVerde, HIGH); digitalWrite(ledAmarelo, HIGH); digitalWrite(ledVermelho, HIGH);
+  delay(300);
+  digitalWrite(ledVerde, LOW); digitalWrite(ledAmarelo, LOW); digitalWrite(ledVermelho, LOW);
+
+  Serial.println(F("{\"status\":\"pronto\",\"sistema\":\"Estacionamento IoT SENAI\"}"));
 }
 
-// Mede a distância em centímetros através do sensor HC-SR04
 float medirDistancia() {
   digitalWrite(pinoTrig, LOW);
   delayMicroseconds(2);
@@ -59,98 +53,64 @@ float medirDistancia() {
   digitalWrite(pinoTrig, LOW);
 
   long duracao = pulseIn(pinoEcho, HIGH, 30000);
-  if (duracao == 0) {
-    return -1.0; // Sem leitura ou fora do alcance
-  }
-
-  // Distância em centímetros = (tempo * 0.0343) / 2
+  if (duracao == 0) return -1.0;
   return (duracao * 0.0343) / 2.0;
 }
 
-// Acende os LEDs físicos conforme o objeto se aproxima
 void controlarLeds(float dist) {
-  if (dist < 0 || dist > 400) {
-    digitalWrite(ledVerde, LOW);
-    digitalWrite(ledAmarelo, LOW);
-    digitalWrite(ledVermelho, LOW);
-  } else if (dist > 100) {
-    // Objeto longe (> 100 cm): LED Verde
-    digitalWrite(ledVerde, HIGH);
-    digitalWrite(ledAmarelo, LOW);
-    digitalWrite(ledVermelho, LOW);
-  } else if (dist >= 50) {
-    // Objeto em distância de atenção (50 a 100 cm): LED Amarelo
-    digitalWrite(ledVerde, LOW);
-    digitalWrite(ledAmarelo, HIGH);
-    digitalWrite(ledVermelho, LOW);
-  } else {
-    // Objeto muito perto (< 50 cm): LED Vermelho
-    digitalWrite(ledVerde, LOW);
-    digitalWrite(ledAmarelo, LOW);
-    digitalWrite(ledVermelho, HIGH);
-  }
+  digitalWrite(ledVerde, dist > 100 ? HIGH : LOW);
+  digitalWrite(ledAmarelo, (dist >= 50 && dist <= 100) ? HIGH : LOW);
+  digitalWrite(ledVermelho, (dist > 0 && dist < 50) ? HIGH : LOW);
 }
 
-// Controla o ritmo dos bipes do buzzer conforme o objeto se aproxima
 void controlarBuzzer(float dist) {
-  if (dist < 0 || dist > 200) {
-    noTone(pinoBuzzer);
-    return;
-  }
+  if (dist < 0 || dist > 200) { noTone(pinoBuzzer); return; }
+  if (dist < 15) { tone(pinoBuzzer, 2400); return; } // Parada crítica contínua
 
-  // Se o objeto estiver colado (< 15 cm): bipe contínuo de parada emergencial
-  if (dist < 15) {
-    tone(pinoBuzzer, 2400);
-    return;
-  }
-
-  // Intervalos conforme os slides:
-  // - Menos de 50 cm: bipes rápidos (150ms)
-  // - De 50 a 100 cm: bipes moderados (400ms)
-  // - Mais de 100 cm: bipes lentos (800ms)
-  unsigned long intervalo = 800;
-  int frequencia = 1600;
-
-  if (dist < 50) {
-    intervalo = 150;
-    frequencia = 2200;
-  } else if (dist <= 100) {
-    intervalo = 400;
-    frequencia = 1900;
-  }
+  unsigned long intervalo = (dist < 50) ? 150 : ((dist <= 100) ? 400 : 800);
+  int frequencia = (dist < 50) ? 2200 : ((dist <= 100) ? 1900 : 1600);
 
   unsigned long agora = millis();
   if (agora - tempoBipe >= intervalo) {
     tempoBipe = agora;
     buzzerStatus = !buzzerStatus;
+    if (buzzerStatus) tone(pinoBuzzer, frequencia);
+    else noTone(pinoBuzzer);
+  }
+}
 
-    if (buzzerStatus) {
-      tone(pinoBuzzer, frequencia);
-    } else {
-      noTone(pinoBuzzer);
+// Processa comandos remotos recebidos da API / Web (Requisito 4.5)
+void processarComandosRemotos() {
+  if (Serial.available() > 0) {
+    String cmd = Serial.readStringUntil('\n');
+    cmd.trim();
+    if (cmd.startsWith("C:ABRIR")) {
+      servoCancela.write(90); // Abre cancela
+      cancelaAberta = true;
+    } else if (cmd.startsWith("C:FECHAR")) {
+      servoCancela.write(0);  // Fecha cancela
+      cancelaAberta = false;
+    } else if (cmd.startsWith("B:TESTE")) {
+      tone(pinoBuzzer, 2000, 400); // Beep de teste remoto
     }
   }
 }
 
 void loop() {
   float distancia = medirDistancia();
-
-  // 1. Atualiza LEDs e Buzzer instantaneamente no circuito
   controlarLeds(distancia);
   controlarBuzzer(distancia);
+  processarComandosRemotos();
 
-  // 2. Envia os centímetros medidos para a Raspberry Pi a cada 250ms (4 vezes por segundo)
+  // Envia a telemetria via serial a cada 250ms
   unsigned long agora = millis();
   if (agora - tempoSerial >= 250) {
     tempoSerial = agora;
-
     if (distancia >= 0) {
-      // Envia em formato JSON simples para a Raspberry Pi ler
-      Serial.print("{\"distancia_cm\":");
+      Serial.print(F("{\"distancia_cm\":"));
       Serial.print(distancia, 1);
-      Serial.println("}");
+      Serial.println(F("}"));
     }
   }
-
   delay(20);
 }
