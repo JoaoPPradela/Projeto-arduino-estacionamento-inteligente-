@@ -1,133 +1,236 @@
 // =======================================================
-// ESTACIONAMENTO INTELIGENTE • JS COMPACTO (100% FUNCIONAL)
+// ESTACIONAMENTO INTELIGENTE • JAVASCRIPT EM PORTUGUÊS
 // =======================================================
 
-let somLigado = false, audioCtx = null, timerBipe = null, intervaloAtual = null, timerSimulacao = null, cancelaStatus = 'FECHADA';
+let somLigado = false;
+let contextoAudio = null;
+let temporizadorBipe = null;
+let intervaloAtual = null;
+let temporizadorSimulacao = null;
+let statusCancela = 'FECHADA';
 
-function bipe(freq, dur = 0.08) {
+// Emite um bipe sonoro sintetizado pelo navegador
+function emitirBipe(frequencia, duracao = 0.08) {
   if (!somLigado) return;
-  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  if (audioCtx.state === 'suspended') audioCtx.resume();
-  const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
-  osc.frequency.value = freq;
-  gain.gain.value = 0.08;
-  osc.connect(gain);
-  gain.connect(audioCtx.destination);
-  osc.start();
-  osc.stop(audioCtx.currentTime + dur);
+
+  try {
+    if (!contextoAudio) {
+      contextoAudio = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (contextoAudio.state === 'suspended') {
+      contextoAudio.resume();
+    }
+
+    const oscilador = contextoAudio.createOscillator();
+    const controleVolume = contextoAudio.createGain();
+
+    oscilador.frequency.value = frequencia;
+    controleVolume.gain.value = 0.08;
+
+    oscilador.connect(controleVolume);
+    controleVolume.connect(contextoAudio.destination);
+
+    oscilador.start();
+    oscilador.stop(contextoAudio.currentTime + duracao);
+  } catch (erro) {
+    console.log("Aguardando interação de áudio:", erro);
+  }
 }
 
-function tocarBipes(dist) {
-  if (!somLigado || dist == null || dist <= 0 || dist > 200) {
-    if (timerBipe) clearInterval(timerBipe);
-    timerBipe = intervaloAtual = null;
+// Controla o intervalo e o ritmo dos bipes conforme a distância medida
+function controlarRitmoBipes(distanciaCentimetros) {
+  if (!somLigado || distanciaCentimetros == null || distanciaCentimetros <= 0 || distanciaCentimetros > 200) {
+    if (temporizadorBipe) clearInterval(temporizadorBipe);
+    temporizadorBipe = null;
+    intervaloAtual = null;
     return;
   }
-  let tempo = dist < 15 ? 120 : (dist < 50 ? 200 : (dist <= 100 ? 450 : 800));
-  let freq = dist < 15 ? 2400 : (dist < 50 ? 2200 : (dist <= 100 ? 1900 : 1600));
-  if (intervaloAtual === tempo && timerBipe) return;
-  if (timerBipe) clearInterval(timerBipe);
-  intervaloAtual = tempo;
-  timerBipe = setInterval(() => bipe(freq), tempo);
+
+  let tempoIntervalo = distanciaCentimetros < 15 ? 120 : (distanciaCentimetros < 50 ? 200 : (distanciaCentimetros <= 100 ? 450 : 800));
+  let frequenciaSom = distanciaCentimetros < 15 ? 2400 : (distanciaCentimetros < 50 ? 2200 : (distanciaCentimetros <= 100 ? 1900 : 1600));
+
+  if (intervaloAtual === tempoIntervalo && temporizadorBipe) return;
+
+  if (temporizadorBipe) clearInterval(temporizadorBipe);
+  intervaloAtual = tempoIntervalo;
+  temporizadorBipe = setInterval(() => emitirBipe(frequenciaSom), tempoIntervalo);
 }
 
-function atualizar() {
+// Atualiza todas as informações da tela com os dados mais recentes da API
+function atualizarPainel() {
+  // 1. Busca os dados ao vivo da vaga
   fetch('/api/vaga/status')
-    .then(r => r.json())
-    .then(dados => {
-      const dist = dados.distancia_cm ?? 0;
-      document.getElementById('distanciaValor').textContent = dist;
-      document.getElementById('distanciaValor').style.color = dados.cor;
-      document.getElementById('distanciaNivel').textContent = 'Nível de ' + (dados.nivel_alerta || '').toLowerCase();
-      document.getElementById('distanciaNivel').style.color = dados.cor;
-      document.getElementById('sensorStatus').textContent = dados.sensor_status;
-      document.getElementById('alertaTexto').textContent = dados.descricao_alerta;
+    .then(resposta => {
+      if (!resposta.ok) throw new Error('Status ' + resposta.status);
+      return resposta.json();
+    })
+    .then(dadosRecebidos => {
+      const distancia = dadosRecebidos.distancia_cm ?? 0;
+      const nivel = dadosRecebidos.nivel_alerta || 'Atenção';
+      const corAlerta = dadosRecebidos.cor || '#eab308';
 
-      // Status da cancela remota
-      cancelaStatus = dados.cancela_status || 'FECHADA';
-      document.getElementById('cancelaTxt').textContent = cancelaStatus;
-      document.getElementById('btnCancela').className = cancelaStatus === 'ABERTA' ? 'btn btn-azul' : 'btn btn-cinza';
+      // Atualiza textos principais
+      const elDistancia = document.getElementById('distanciaValor');
+      if (elDistancia) {
+        elDistancia.textContent = distancia;
+        elDistancia.style.color = corAlerta;
+      }
+      const elNivel = document.getElementById('distanciaNivel');
+      if (elNivel) {
+        elNivel.textContent = 'Nível de ' + nivel.toLowerCase();
+        elNivel.style.color = corAlerta;
+      }
+      const elSensor = document.getElementById('sensorStatus');
+      if (elSensor) elSensor.textContent = dadosRecebidos.sensor_status;
 
-      // Barra de proximidade e LEDs
-      const barra = document.getElementById('barraPreenchimento');
-      barra.style.width = Math.max(5, Math.min(100, ((200 - dist) / 200) * 100)) + '%';
-      barra.style.backgroundColor = dados.cor;
+      const elAlerta = document.getElementById('alertaTexto');
+      if (elAlerta) elAlerta.textContent = dadosRecebidos.descricao_alerta;
 
-      ['ledVerde', 'ledAmarelo', 'ledVermelho'].forEach(id => document.getElementById(id).className = 'led-bolinha');
-      if (dados.led === 'Verde') document.getElementById('ledVerde').className = 'led-bolinha led-verde-ativo';
-      if (dados.led === 'Amarelo') document.getElementById('ledAmarelo').className = 'led-bolinha led-amarelo-ativo';
-      if (dados.led === 'Vermelho') document.getElementById('ledVermelho').className = 'led-bolinha led-vermelho-ativo';
+      // Atualiza o estado da cancela remota
+      statusCancela = dadosRecebidos.cancela_status || 'FECHADA';
+      const elCancelaTxt = document.getElementById('cancelaTxt');
+      if (elCancelaTxt) elCancelaTxt.textContent = statusCancela;
+      const elBtnCancela = document.getElementById('btnCancela');
+      if (elBtnCancela) elBtnCancela.className = (statusCancela === 'ABERTA') ? 'btn btn-azul' : 'btn btn-cinza';
 
-      // Posição do carrinho na pista
-      const pos = Math.max(10, Math.min(78, 78 - ((dist - 15) / 165) * 65));
-      document.getElementById('carroVirtual').style.left = pos + '%';
+      // Atualiza a barra visual de proximidade
+      const barraProximidade = document.getElementById('barraPreenchimento');
+      if (barraProximidade) {
+        barraProximidade.style.width = Math.max(5, Math.min(100, ((200 - distancia) / 200) * 100)) + '%';
+        barraProximidade.style.backgroundColor = corAlerta;
+      }
 
-      tocarBipes(dist);
+      // Atualiza os LEDs virtuais
+      ['ledVerde', 'ledAmarelo', 'ledVermelho'].forEach(idLed => {
+        const led = document.getElementById(idLed);
+        if (led) led.className = 'led-bolinha';
+      });
+      if (dadosRecebidos.led === 'Verde') document.getElementById('ledVerde')?.classList.add('led-verde-ativo');
+      if (dadosRecebidos.led === 'Amarelo') document.getElementById('ledAmarelo')?.classList.add('led-amarelo-ativo');
+      if (dadosRecebidos.led === 'Vermelho') document.getElementById('ledVermelho')?.classList.add('led-vermelho-ativo');
+
+      // Atualiza a posição do carrinho na vaga
+      const elCarro = document.getElementById('carroVirtual');
+      if (elCarro) {
+        const posicaoCarro = Math.max(10, Math.min(78, 78 - ((distancia - 15) / 165) * 65));
+        elCarro.style.left = posicaoCarro + '%';
+      }
+
+      // Atualiza o ritmo dos bipes sonoros
+      controlarRitmoBipes(distancia);
+    })
+    .catch(() => {
+      // Ignora falhas temporárias se o servidor estiver reiniciando
     });
 
-  // Histórico
+  // 2. Busca o histórico de medições para preencher a tabela
   fetch('/api/leituras/historico')
-    .then(r => r.json())
-    .then(dados => {
-      const tb = document.getElementById('tabelaCorpo');
-      if (!dados.historico?.length) return (tb.innerHTML = '<tr><td colspan="4">Sem leituras</td></tr>');
-      tb.innerHTML = dados.historico.map(h => {
-        const cor = h.nivel_alerta === 'Longe' ? 'tag-verde' : (h.nivel_alerta === 'Muito Perto' ? 'tag-vermelho' : 'tag-amarelo');
-        const hora = h.data_hora ? h.data_hora.split(' ')[1] || h.data_hora : '--:--';
-        return `<tr><td>${hora}</td><td><strong>${h.distancia_cm} cm</strong></td><td><span class="${cor}">${h.nivel_alerta}</span></td><td>${h.descricao_alerta}</td></tr>`;
+    .then(resposta => {
+      if (!resposta.ok) throw new Error('Status ' + resposta.status);
+      return resposta.json();
+    })
+    .then(dadosHistorico => {
+      const tabelaCorpo = document.getElementById('tabelaCorpo');
+      if (!tabelaCorpo) return;
+
+      if (!dadosHistorico.historico?.length) {
+        tabelaCorpo.innerHTML = '<tr><td colspan="4">Nenhuma leitura cadastrada</td></tr>';
+        return;
+      }
+
+      tabelaCorpo.innerHTML = dadosHistorico.historico.map(registro => {
+        const classeTag = registro.nivel_alerta === 'Longe' ? 'tag-verde' : (registro.nivel_alerta === 'Muito Perto' ? 'tag-vermelho' : 'tag-amarelo');
+        const horario = registro.data_hora ? (registro.data_hora.includes(' ') ? registro.data_hora.split(' ')[1] : registro.data_hora) : '--:--';
+        return `<tr><td>${horario}</td><td><strong>${registro.distancia_cm} cm</strong></td><td><span class="${classeTag}">${registro.nivel_alerta}</span></td><td>${registro.descricao_alerta}</td></tr>`;
       }).join('');
-    });
+    })
+    .catch(() => {});
 }
 
-function enviar(dist) {
+// Envia uma nova leitura manual para a API
+function enviarLeituraManual(distanciaCentimetros) {
   fetch('/api/leituras', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ vaga_codigo: 'VAGA-01', distancia_cm: parseFloat(dist) })
-  }).then(atualizar);
+    body: JSON.stringify({ vaga_codigo: 'VAGA-01', distancia_cm: parseFloat(distanciaCentimetros) })
+  }).then(atualizarPainel).catch(() => {});
 }
 
-function comandoRemoto(atuador, acao) {
+// Envia comando para os atuadores remotos (Cancela ou Buzzer)
+function enviarComandoAtuador(atuador, acao) {
   fetch('/api/atuadores/comando', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ atuador, acao })
-  }).then(atualizar);
+    body: JSON.stringify({ atuador: atuador, acao: acao })
+  }).then(atualizarPainel).catch(() => {});
 }
 
-function simular(passos) {
-  if (timerSimulacao) clearInterval(timerSimulacao);
-  let i = 0;
-  timerSimulacao = setInterval(() => {
-    if (i >= passos.length) return clearInterval(timerSimulacao);
-    document.getElementById('sliderDistancia').value = passos[i];
-    document.getElementById('sliderTexto').textContent = passos[i] + ' cm';
-    enviar(passos[i++]);
+// Executa simulações de manobra em passos sucessivos
+function executarSimulacao(passosDistancia) {
+  if (temporizadorSimulacao) clearInterval(temporizadorSimulacao);
+  let indicePasso = 0;
+
+  temporizadorSimulacao = setInterval(() => {
+    if (indicePasso >= passosDistancia.length) {
+      clearInterval(temporizadorSimulacao);
+      temporizadorSimulacao = null;
+      return;
+    }
+    const distanciaAtual = passosDistancia[indicePasso++];
+    const slider = document.getElementById('sliderDistancia');
+    const sliderTxt = document.getElementById('sliderTexto');
+    if (slider) slider.value = distanciaAtual;
+    if (sliderTxt) sliderTxt.textContent = distanciaAtual + ' cm';
+    enviarLeituraManual(distanciaAtual);
   }, 600);
 }
 
+// Configuração dos eventos quando a página é carregada
 window.addEventListener('DOMContentLoaded', () => {
-  const slider = document.getElementById('sliderDistancia');
-  slider.oninput = () => document.getElementById('sliderTexto').textContent = slider.value + ' cm';
+  const controleDeslizante = document.getElementById('sliderDistancia');
+  if (controleDeslizante) {
+    controleDeslizante.oninput = () => {
+      const sliderTxt = document.getElementById('sliderTexto');
+      if (sliderTxt) sliderTxt.textContent = controleDeslizante.value + ' cm';
+    };
+  }
 
-  document.getElementById('btnAplicarSlider').onclick = () => enviar(slider.value);
-  document.getElementById('btn68').onclick = () => { slider.value = 68; slider.oninput(); enviar(68); };
-  document.getElementById('btnEntrar').onclick = () => simular([150, 110, 85, 68, 40, 15]);
-  document.getElementById('btnSair').onclick = () => simular([15, 45, 68, 95, 130, 175]);
+  // Botões de teste e simulação
+  document.getElementById('btnAplicarSlider')?.addEventListener('click', () => {
+    if (controleDeslizante) enviarLeituraManual(controleDeslizante.value);
+  });
+  document.getElementById('btn68')?.addEventListener('click', () => {
+    if (controleDeslizante) {
+      controleDeslizante.value = 68;
+      controleDeslizante.oninput();
+    }
+    enviarLeituraManual(68);
+  });
+  document.getElementById('btnEntrar')?.addEventListener('click', () => executarSimulacao([150, 110, 85, 68, 40, 15]));
+  document.getElementById('btnSair')?.addEventListener('click', () => executarSimulacao([15, 45, 68, 95, 130, 175]));
 
-  // Controles Remotos de Atuadores (Requisito 4.5)
-  document.getElementById('btnCancela').onclick = () => comandoRemoto('cancela', cancelaStatus === 'ABERTA' ? 'FECHAR' : 'ABRIR');
-  document.getElementById('btnBuzzerRemoto').onclick = () => { comandoRemoto('buzzer', 'TESTE'); bipe(2000, 0.4); };
+  // Controles dos atuadores remotos
+  document.getElementById('btnCancela')?.addEventListener('click', () => {
+    enviarComandoAtuador('cancela', statusCancela === 'ABERTA' ? 'FECHAR' : 'ABRIR');
+  });
+  document.getElementById('btnBuzzerRemoto')?.addEventListener('click', () => {
+    enviarComandoAtuador('buzzer', 'TESTE');
+    emitirBipe(2000, 0.4);
+  });
 
-  const btnAudio = document.getElementById('btnAudio');
-  btnAudio.onclick = () => {
-    somLigado = !somLigado;
-    btnAudio.innerHTML = somLigado ? '🔊 Som de Bipes: <strong>Ligado</strong>' : '🔇 Som de Bipes: <strong>Desligado</strong>';
-    btnAudio.classList.toggle('ativo', somLigado);
-    if (!somLigado && timerBipe) clearInterval(timerBipe);
-    atualizar();
-  };
+  // Botão para ligar e desligar o som
+  const botaoAlarmeSonoro = document.getElementById('btnAudio');
+  if (botaoAlarmeSonoro) {
+    botaoAlarmeSonoro.onclick = () => {
+      somLigado = !somLigado;
+      botaoAlarmeSonoro.innerHTML = somLigado ? '🔊 Som de Bipes: <strong>Ligado</strong>' : '🔇 Som de Bipes: <strong>Desligado</strong>';
+      botaoAlarmeSonoro.classList.toggle('ativo', somLigado);
+      if (!somLigado && temporizadorBipe) clearInterval(temporizadorBipe);
+      atualizarPainel();
+    };
+  }
 
-  atualizar();
-  setInterval(atualizar, 350);
+  // Atualização inicial e periódica a cada 350 milissegundos
+  atualizarPainel();
+  setInterval(atualizarPainel, 350);
 });

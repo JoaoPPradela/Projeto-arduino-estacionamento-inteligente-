@@ -3,114 +3,190 @@
   Estacionamento Inteligente • Vaga 01
   Autores: João Pradela, João Palandi e Pedro Cesar
 
-  Pinagem Arduino Uno R3:
-  - HC-SR04 Trig   -> Pino 9
-  - HC-SR04 Echo   -> Pino 10
-  - Buzzer (+)     -> Pino 8
-  - LED Verde (+)  -> Pino 5 (resistor 220 ohms)
-  - LED Amarelo (+) -> Pino 6 (resistor 220 ohms)
-  - LED Vermelho (+)-> Pino 7 (resistor 220 ohms)
-  - Micro Servo    -> Pino 11 (Cancela Mecânica)
-  - GND de todos   -> Pino GND
+  Pinagem no Arduino Uno R3:
+  - Sensor Ultrassônico Gatilho (Trig) -> Pino Digital 9
+  - Sensor Ultrassônico Retorno (Echo)  -> Pino Digital 10
+  - Buzzer (Alarme Sonoro)              -> Pino Digital 8
+  - LED Verde                           -> Pino Digital 5 (resistor 220 ohms)
+  - LED Amarelo                         -> Pino Digital 6 (resistor 220 ohms)
+  - LED Vermelho                        -> Pino Digital 7 (resistor 220 ohms)
+  - Micro Servo (Cancela)               -> Pino Digital 11
+  - GND comum                           -> Pino GND do Arduino
 */
 
 #include <Servo.h>
 
-const int pinoTrig = 9, pinoEcho = 10, pinoBuzzer = 8;
-const int ledVerde = 5, ledAmarelo = 6, ledVermelho = 7, pinoServo = 11;
+// Definição dos pinos em português
+const int pinoGatilho = 9;
+const int pinoEco = 10;
+const int pinoAlarmeSonoro = 8;
+const int pinoLedVerde = 5;
+const int pinoLedAmarelo = 6;
+const int pinoLedVermelho = 7;
+const int pinoServoCancela = 11;
 
-Servo servoCancela;
-unsigned long tempoBipe = 0, tempoSerial = 0;
-bool buzzerStatus = false;
+// Objetos e variáveis globais
+Servo motorCancela;
+unsigned long tempoUltimoEnvioSerial = 0;
 bool cancelaAberta = false;
+float ultimaDistanciaValida = 68.0;
+
+// Liga o buzzer com segurança (funciona tanto para buzzer ativo quanto passivo)
+void ligarBuzzer(int frequenciaTom) {
+  tone(pinoAlarmeSonoro, frequenciaTom);
+  digitalWrite(pinoAlarmeSonoro, HIGH);
+}
+
+// Desliga o buzzer completamente
+void desligarBuzzer() {
+  noTone(pinoAlarmeSonoro);
+  digitalWrite(pinoAlarmeSonoro, LOW);
+}
+
+// Move a cancela suavemente e desliga o sinal para evitar ruído e sobreaquecimento
+void acionarCancela(int angulo) {
+  motorCancela.attach(pinoServoCancela);
+  motorCancela.write(angulo);
+  delay(300);
+  motorCancela.detach();
+}
 
 void setup() {
   Serial.begin(9600);
-  pinMode(pinoTrig, OUTPUT);
-  pinMode(pinoEcho, INPUT);
-  pinMode(pinoBuzzer, OUTPUT);
-  pinMode(ledVerde, OUTPUT);
-  pinMode(ledAmarelo, OUTPUT);
-  pinMode(ledVermelho, OUTPUT);
 
-  // Conecta o servo motor da cancela (padrão fechada a 0 graus)
-  servoCancela.attach(pinoServo);
-  servoCancela.write(0);
+  pinMode(pinoGatilho, OUTPUT);
+  pinMode(pinoEco, INPUT);
+  pinMode(pinoAlarmeSonoro, OUTPUT);
+  pinMode(pinoLedVerde, OUTPUT);
+  pinMode(pinoLedAmarelo, OUTPUT);
+  pinMode(pinoLedVermelho, OUTPUT);
 
-  // Teste inicial rápido dos LEDs
-  digitalWrite(ledVerde, HIGH); digitalWrite(ledAmarelo, HIGH); digitalWrite(ledVermelho, HIGH);
+  // Inicializa o buzzer desligado
+  desligarBuzzer();
+
+  // Posiciona a cancela fechada (0 graus)
+  acionarCancela(0);
+
+  // Pisca os 3 LEDs no início para confirmar inicialização
+  digitalWrite(pinoLedVerde, HIGH);
+  digitalWrite(pinoLedAmarelo, HIGH);
+  digitalWrite(pinoLedVermelho, HIGH);
   delay(300);
-  digitalWrite(ledVerde, LOW); digitalWrite(ledAmarelo, LOW); digitalWrite(ledVermelho, LOW);
+  digitalWrite(pinoLedVerde, LOW);
+  digitalWrite(pinoLedAmarelo, LOW);
+  digitalWrite(pinoLedVermelho, LOW);
 
   Serial.println(F("{\"status\":\"pronto\",\"sistema\":\"Estacionamento IoT SENAI\"}"));
 }
 
+// Mede a distância em centímetros através do sensor ultrassônico HC-SR04
 float medirDistancia() {
-  digitalWrite(pinoTrig, LOW);
+  digitalWrite(pinoGatilho, LOW);
   delayMicroseconds(2);
-  digitalWrite(pinoTrig, HIGH);
+  digitalWrite(pinoGatilho, HIGH);
   delayMicroseconds(10);
-  digitalWrite(pinoTrig, LOW);
+  digitalWrite(pinoGatilho, LOW);
 
-  long duracao = pulseIn(pinoEcho, HIGH, 30000);
-  if (duracao == 0) return -1.0;
-  return (duracao * 0.0343) / 2.0;
+  // Timeout de 25000 microssegundos (~4 metros no máximo)
+  long duracao = pulseIn(pinoEco, HIGH, 25000);
+  if (duracao <= 0) return -1.0;
+
+  float distanciaCalculada = (duracao * 0.0343) / 2.0;
+  if (distanciaCalculada < 2.0 || distanciaCalculada > 350.0) return -1.0;
+
+  return distanciaCalculada;
 }
 
-void controlarLeds(float dist) {
-  digitalWrite(ledVerde, dist > 100 ? HIGH : LOW);
-  digitalWrite(ledAmarelo, (dist >= 50 && dist <= 100) ? HIGH : LOW);
-  digitalWrite(ledVermelho, (dist > 0 && dist < 50) ? HIGH : LOW);
+// Controla os 3 LEDs visuais de acordo com a distância
+void controlarLeds(float distanciaCentimetros) {
+  if (distanciaCentimetros <= 0) {
+    digitalWrite(pinoLedVerde, LOW);
+    digitalWrite(pinoLedAmarelo, LOW);
+    digitalWrite(pinoLedVermelho, LOW);
+    return;
+  }
+  digitalWrite(pinoLedVerde, distanciaCentimetros > 100 ? HIGH : LOW);
+  digitalWrite(pinoLedAmarelo, (distanciaCentimetros >= 50 && distanciaCentimetros <= 100) ? HIGH : LOW);
+  digitalWrite(pinoLedVermelho, (distanciaCentimetros > 0 && distanciaCentimetros < 50) ? HIGH : LOW);
 }
 
-void controlarBuzzer(float dist) {
-  if (dist < 0 || dist > 200) { noTone(pinoBuzzer); return; }
-  if (dist < 15) { tone(pinoBuzzer, 2400); return; } // Parada crítica contínua
+// Controla os bipes do alarme sonoro com ritmo suave e sem explosões sonoras
+void controlarBuzzer(float distancia) {
+  // Fora da faixa de aproximação ou leitura inválida: silêncio absoluto
+  if (distancia <= 0 || distancia > 150) {
+    desligarBuzzer();
+    return;
+  }
 
-  unsigned long intervalo = (dist < 50) ? 150 : ((dist <= 100) ? 400 : 800);
-  int frequencia = (dist < 50) ? 2200 : ((dist <= 100) ? 1900 : 1600);
+  // Intervalos de bipe conforme a zona de aproximação
+  unsigned long intervaloTotal;
+  int frequenciaTom;
 
-  unsigned long agora = millis();
-  if (agora - tempoBipe >= intervalo) {
-    tempoBipe = agora;
-    buzzerStatus = !buzzerStatus;
-    if (buzzerStatus) tone(pinoBuzzer, frequencia);
-    else noTone(pinoBuzzer);
+  if (distancia < 15) {
+    intervaloTotal = 120; // Perigo iminente: bipes muito rápidos
+    frequenciaTom = 2300;
+  } else if (distancia < 50) {
+    intervaloTotal = 250; // Muito perto: bipes rápidos
+    frequenciaTom = 2100;
+  } else if (distancia <= 100) {
+    intervaloTotal = 500; // Atenção: bipes moderados
+    frequenciaTom = 1850;
+  } else {
+    intervaloTotal = 900; // Longe: bipes lentos
+    frequenciaTom = 1600;
+  }
+
+  // O bipe fica ligado apenas por 55 milissegundos dentro de cada ciclo
+  unsigned long tempoNoCiclo = millis() % intervaloTotal;
+  if (tempoNoCiclo < 55) {
+    ligarBuzzer(frequenciaTom);
+  } else {
+    desligarBuzzer();
   }
 }
 
-// Processa comandos remotos recebidos da API / Web (Requisito 4.5)
+// Processa comandos remotos recebidos via Serial da tela Web ou Raspberry Pi
 void processarComandosRemotos() {
   if (Serial.available() > 0) {
-    String cmd = Serial.readStringUntil('\n');
-    cmd.trim();
-    if (cmd.startsWith("C:ABRIR")) {
-      servoCancela.write(90); // Abre cancela
+    String comando = Serial.readStringUntil('\n');
+    comando.trim();
+
+    if (comando.startsWith("C:ABRIR")) {
+      acionarCancela(90);
       cancelaAberta = true;
-    } else if (cmd.startsWith("C:FECHAR")) {
-      servoCancela.write(0);  // Fecha cancela
+    } else if (comando.startsWith("C:FECHAR")) {
+      acionarCancela(0);
       cancelaAberta = false;
-    } else if (cmd.startsWith("B:TESTE")) {
-      tone(pinoBuzzer, 2000, 400); // Beep de teste remoto
+    } else if (comando.startsWith("B:TESTE")) {
+      ligarBuzzer(2000);
+      delay(200);
+      desligarBuzzer();
     }
   }
 }
 
 void loop() {
-  float distancia = medirDistancia();
-  controlarLeds(distancia);
-  controlarBuzzer(distancia);
+  float distanciaLida = medirDistancia();
+
+  // Se a leitura for válida, atualiza o valor estável
+  if (distanciaLida > 0) {
+    ultimaDistanciaValida = distanciaLida;
+  }
+
+  controlarLeds(distanciaLida > 0 ? distanciaLida : ultimaDistanciaValida);
+  controlarBuzzer(distanciaLida);
   processarComandosRemotos();
 
-  // Envia a telemetria via serial a cada 250ms
+  // Envia JSON pela porta serial a cada 250 milissegundos
   unsigned long agora = millis();
-  if (agora - tempoSerial >= 250) {
-    tempoSerial = agora;
-    if (distancia >= 0) {
+  if (agora - tempoUltimoEnvioSerial >= 250) {
+    tempoUltimoEnvioSerial = agora;
+    if (distanciaLida > 0) {
       Serial.print(F("{\"distancia_cm\":"));
-      Serial.print(distancia, 1);
+      Serial.print(distanciaLida, 1);
       Serial.println(F("}"));
     }
   }
+
   delay(20);
 }

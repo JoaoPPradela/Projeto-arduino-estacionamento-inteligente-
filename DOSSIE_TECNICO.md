@@ -59,13 +59,13 @@ $$\text{distância (cm)} = \frac{\text{tempo de eco (µs)} \times 0.0343}{2}$$
                                                         ├── Broker MQTT Mosquitto (:1883)
                                                         │     ├── Tópico Sub: estacionamento/vaga01/distancia
                                                         │     └── Tópico Pub: estacionamento/vaga01/atuadores
-                                                        └── API Python Flask & SQLite (:5000)
+                                                        └── API Python FastAPI & SQLite (:5000) • Swagger (/docs)
 ```
 
 ### Configuração no Raspberry Pi OS:
 ```bash
 sudo apt update && sudo apt install -y mosquitto mosquitto-clients
-pip install paho-mqtt pyserial flask
+pip install paho-mqtt pyserial fastapi uvicorn
 ```
 
 ---

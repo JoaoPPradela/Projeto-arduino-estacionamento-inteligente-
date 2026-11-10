@@ -47,7 +47,7 @@ O projeto resolve a dificuldade de visibilidade ao manobrar em vagas apertadas a
                                                         ├── Broker MQTT Mosquitto (:1883)
                                                         │     ├── Sub: estacionamento/vaga01/distancia
                                                         │     └── Pub: estacionamento/vaga01/atuadores
-                                                        └── API Python Flask & SQLite (:5000)
+                                                        └── API Python FastAPI & SQLite (:5000) • Swagger (/docs)
 ```
 
 ### Instalação na Raspberry Pi:
